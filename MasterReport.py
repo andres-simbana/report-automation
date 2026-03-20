@@ -1,12 +1,17 @@
 from playwright.sync_api import sync_playwright
+import os
 import time
 from datetime import datetime, timedelta
 import calendar
 
+MAX_REINTENTOS = 20
+
 
 class AutomatizadorReportes:
     def __init__(self):
-        self.url_reporte = "https://your-internal-system.example.com/reports/MasterReport"
+        self.url_reporte = os.environ.get("REPORT_URL", "")
+        if not self.url_reporte:
+            raise ValueError("Define la variable de entorno REPORT_URL con la URL del sistema de reportes")
         self.contador_vueltas = 0
 
     def calcular_fechas(self, meses_atras):
@@ -36,9 +41,7 @@ class AutomatizadorReportes:
             if len(campos) > indice:
                 campo = campos[indice]
                 campo.fill("")
-                time.sleep(0.2)
                 campo.fill(fecha)
-                time.sleep(0.2)
                 return True
             return False
         except Exception:
@@ -72,11 +75,11 @@ class AutomatizadorReportes:
         intento = 0
         inicio_consulta = time.time()
 
-        while True:
+        while intento < MAX_REINTENTOS:
             intento += 1
             tiempo_transcurrido = int(time.time() - inicio_consulta)
 
-            print(f"\n      Intento #{intento} (tiempo: {tiempo_transcurrido}s)")
+            print(f"\n      Intento #{intento}/{MAX_REINTENTOS} (tiempo: {tiempo_transcurrido}s)")
             print(f"         Seleccionando fechas...")
             self.seleccionar_fecha(page, 0, fecha_inicio)
             self.seleccionar_fecha(page, 1, fecha_fin)
@@ -92,6 +95,9 @@ class AutomatizadorReportes:
             else:
                 print(f"         Click falló: {razon}. Reintentando en 30s...")
                 time.sleep(30)
+
+        print(f"   Se alcanzó el máximo de {MAX_REINTENTOS} reintentos sin éxito")
+        return False
 
     def bucle_infinito(self, page):
         print("\n" + "="*70)
@@ -143,9 +149,11 @@ class AutomatizadorReportes:
             print("Cuando el reporte esté cargado, presiona ENTER")
             print("="*70)
 
+            # Pausa intencional para login SSO manual
             input("\nPresiona ENTER cuando estés listo...")
 
-            if page.locator("button[aria-label='select']").count() >= 2:
+            controles = page.locator("button[aria-label='select']").count()
+            if controles >= 2:
                 print("Página de reportes confirmada")
                 time.sleep(3)
 
@@ -154,7 +162,7 @@ class AutomatizadorReportes:
                 except KeyboardInterrupt:
                     print("\nPrograma detenido")
             else:
-                print("No se encontraron los controles del reporte")
+                print(f"No se encontraron los controles del reporte (se encontraron {controles} de 2 esperados)")
                 input("\nPresiona ENTER para cerrar...")
 
             context.close()
